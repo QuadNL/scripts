@@ -33,14 +33,11 @@ Before running this installer, make sure the following components are available 
 
 ## Installation
 
-In the Proxmox Backup Server shell run:
-
-bash <(curl -s https://raw.githubusercontent.com/QuadNL/scripts/main/Proxmox%20Backup%20Server%20to%20MQTT/install_pbs_mqtt.sh)
-
-Run the script as root:
+In the Proxmox Backup Server shell run the script as root:
 
 ```bash
-sudo bash install_pbs_mqtt.sh
+bash <(curl -s https://raw.githubusercontent.com/QuadNL/scripts/main/Proxmox%20Backup%20Server%20to%20MQTT/install_pbs_mqtt.sh)
+```
 
 During installation you'll be asked for or confirm to:
   - User used for the Proxmox Backup Server connection
@@ -51,3 +48,17 @@ During installation you'll be asked for or confirm to:
   - Preferred interval
   - Logging (basic)
   - Run after installation
+
+## Issues
+If you encounter any issues, please open an issue in the GitHub repository. When reporting a bug, include relevant logs or command output if possible.
+
+## Contribution
+Contributions are welcome! Feel free to fork the repository and submit a pull request with improvements, bug fixes, or new features. Please keep changes modular and well-documented.
+
+## License
+
+# Legal Disclaimer
+Use this software at your own risk. This software comes with no warranty, either express or implied.
+I assume no liability for the use or misuse of this software or its derivatives.
+This software is offered "as-is". I will not install, remove, operate or support this software at your request.
+If you are unsure of how this software will interact with your system, do not use it.
