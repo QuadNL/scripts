@@ -49,6 +49,16 @@ During installation you'll be asked for or confirm to:
   - Logging (basic)
   - Run after installation
 
+## After installation
+After installation you'll see incoming MQTT packets on your MQTT broker and in Home Assistant there is a device created under MQTT: Proxmox Backup Server.
+Each entity contains the following information:
+
+<img width="1256" height="227" alt="image" src="https://github.com/user-attachments/assets/e1c3e75d-8624-4ed6-b8a3-e20c1cfc2a8b" />
+
+Which can be used as sensors in your dashboards or automations:
+<img width="797" height="357" alt="image" src="https://github.com/user-attachments/assets/fd50484e-c094-490d-93bb-996869208ba1" />
+
+
 ## Issues
 If you encounter any issues, please open an issue in the GitHub repository. When reporting a bug, include relevant logs or command output if possible.
 
