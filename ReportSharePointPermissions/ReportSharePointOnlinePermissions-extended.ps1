@@ -6,7 +6,7 @@
 $logFile = Join-Path $env:TEMP "PowerShell_Transcript_report-spo_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 Start-Transcript -Path $logFile
 
-$logo = ""
+$logo = "https://www.panthera.nl/images/2018/04/16/sharepoint-online.jpg"
 
 function Silent {
     param([ScriptBlock]$Command)
@@ -230,7 +230,7 @@ function Write-ToExcelSheet {
         $overviewSheet = $workbook.Sheets.Add($workbook.Sheets.Item(1))
         $overviewSheet.Name = "Overview"
 
-        $logoUrl = "https://mijn.connectium.nl/logo/Connectium.png"
+        $logoUrl = $logo
         $logoPath = "$env:TEMP\Connectium.png"
         Invoke-WebRequest -Uri $logoUrl -OutFile $logoPath -ErrorAction SilentlyContinue
         if (Test-Path $logoPath) {
