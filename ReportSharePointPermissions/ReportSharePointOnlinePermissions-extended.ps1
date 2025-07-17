@@ -6,7 +6,7 @@
 $logFile = Join-Path $env:TEMP "PowerShell_Transcript_report-spo_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 Start-Transcript -Path $logFile
 
-$logo = "https://www.panthera.nl/images/2018/04/16/sharepoint-online.jpg"
+$logo = "https://github.com/QuadNL/scripts/blob/main/ReportSharePointPermissions/sharepoint-online.jpg?raw=true"
 
 function Silent {
     param([ScriptBlock]$Command)
