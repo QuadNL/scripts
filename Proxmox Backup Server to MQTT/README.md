@@ -17,7 +17,7 @@ This script automates the setup of MQTT-based backup status reporting from a **P
 Before running this installer, make sure the following components are available and properly configured:
 
 - **Proxmox Backup Server (PBS)**  
-  - Version: **8.4.1** (tested and supported)
+  - Version: **3.4.2** (tested and supported)
   - Installed as either an LXC container or a virtual machine
 
 - **MQTT Broker**  
