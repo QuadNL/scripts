@@ -101,7 +101,7 @@ backup_json=\$(proxmox-backup-manager task list --all --output-format json |
 
 echo "\$backup_json" | jq -c '.[]' | while read -r client_entry; do
   client=\$(echo "\$client_entry" | jq -r '.client')
-  clean_name=\$(echo "\$client" | sed 's/^NAS://' | tr -d '/')
+  clean_name=$(echo "$client" | sed 's/^[^:]*://' | tr -d '/')
   safe_client_topic=\$(echo "\$clean_name" | sed 's#[/:]#_#g')
 
   clean_backups=\$(echo "\$client_entry" | jq -c '
