@@ -44,6 +44,7 @@ During installation you'll be asked for or confirm to:
   - IP Address of MQTT broker
   - MQTT Port (default 1883)
   - MQTT User and Password
+  - Device Name for MQTT e.g. PBS. (this will be used for Device name and sensor: sensor.{devicename}_backup_{ct/vm ID}
   - Stale Hours (Stale means it's been longer than the defined time between backups since the last one occured)
   - Preferred interval
   - Logging (basic)
