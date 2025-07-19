@@ -82,13 +82,13 @@ MQTT_HOST="$MQTT_HOST"
 MQTT_PORT=$MQTT_PORT
 MQTT_USER="$MQTT_USER"
 MQTT_PASS="$MQTT_PASS"
-MQTT_BASE_TOPIC="proxmox/pbs/$DEVICENAME/backup_status"
+MQTT_BASE_TOPIC="proxmox/$DEVICENAME/backup_status"
 STALE_HOURS=$STALE_HOURS
 
 TOKEN_ID=$TOKEN_ID
 TOKEN_SECRET=$PBS_TOKEN_SECRET
 
-HA_DEVICE='{"identifiers":["proxmox_backup"],"name":"$DEVICENAME","manufacturer":"Proxmox","model":"Backup Server"}'
+HA_DEVICE='{"identifiers":["$DEVICENAME"],"name":"$DEVICENAME","manufacturer":"Proxmox","model":"Backup Server"}'
 
 mqtt_publish() {
   local topic="\$1"
