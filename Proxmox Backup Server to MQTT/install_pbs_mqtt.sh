@@ -60,6 +60,8 @@ read -p "MQTT Port (default 1883): " MQTT_PORT
 MQTT_PORT=${MQTT_PORT:-1883}
 read -p "MQTT User: " MQTT_USER
 read -p "MQTT Password: " MQTT_PASS
+read -p "Device name (default Proxmox Backup): " DEVICENAME
+DEVICENAME=${DEVICENAME:-Proxmox Backup}
 read -p "Stale Hours (default 72): " STALE_HOURS
 STALE_HOURS=${STALE_HOURS:-72}
 read -p "Run script every X minutes (default 15): " CRON_INTERVAL
@@ -86,7 +88,7 @@ STALE_HOURS=$STALE_HOURS
 TOKEN_ID=$TOKEN_ID
 TOKEN_SECRET=$PBS_TOKEN_SECRET
 
-HA_DEVICE='{"identifiers":["proxmox_backup"],"name":"Proxmox Backup","manufacturer":"Proxmox","model":"Backup Server"}'
+HA_DEVICE='{"identifiers":["proxmox_backup"],"name":"$DEVICENAME","manufacturer":"Proxmox","model":"Backup Server"}'
 
 mqtt_publish() {
   local topic="\$1"
