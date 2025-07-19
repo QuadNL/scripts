@@ -96,8 +96,17 @@ mqtt_publish() {
   mosquitto_pub -h "\$MQTT_HOST" -p "\$MQTT_PORT" -u "\$MQTT_USER" -P "\$MQTT_PASS" -t "\$topic" -m "\$payload" -r
 }
 
-backup_json=\$(proxmox-backup-manager task list --all --limit 1000 --output-format json |
-  jq '[.[] | select(.worker_type == "backup")] | sort_by(.starttime) | group_by(.worker_id) | map({client: .[-1].worker_id, backups: [.[-1]]})')
+raw_json=\$(proxmox-backup-manager task list --all --limit 100 --output-format json)
+
+backup_json=\$(echo "\$raw_json" | jq --argjson now "\$(date +%s)" '
+  [.[]
+    | select(.worker_type == "backup")
+    | select((.starttime // 0) >= ($now - 86400))
+  ]
+  | sort_by(.starttime)
+  | group_by(.worker_id)
+  | map({client: .[-1].worker_id, backups: [.[-1]]})
+')
 
 echo "\$backup_json" | jq -c '.[]' | while read -r client_entry; do
   client=\$(echo "\$client_entry" | jq -r '.client')
