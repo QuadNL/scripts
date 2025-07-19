@@ -101,7 +101,7 @@ raw_json=\$(proxmox-backup-manager task list --all --limit 100 --output-format j
 backup_json=\$(echo "\$raw_json" | jq --argjson now "\$(date +%s)" '
   [.[]
     | select(.worker_type == "backup")
-    | select((.starttime // 0) >= ($now - 86400))
+    | select((.starttime // 0) >= (\$now - 86400))
   ]
   | sort_by(.starttime)
   | group_by(.worker_id)
@@ -110,7 +110,7 @@ backup_json=\$(echo "\$raw_json" | jq --argjson now "\$(date +%s)" '
 
 echo "\$backup_json" | jq -c '.[]' | while read -r client_entry; do
   client=\$(echo "\$client_entry" | jq -r '.client')
-  clean_name=\$(echo "$client" | sed 's/^[^:]*://' | tr -d '/')
+  clean_name=\$(echo "\$client" | sed 's/^[^:]*://' | tr -d '/')
   safe_client_topic=\$(echo "\$clean_name" | sed 's#[/:]#_#g')
 
   clean_backups=\$(echo "\$client_entry" | jq -c '
