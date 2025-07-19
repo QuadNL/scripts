@@ -167,7 +167,7 @@ fi
 
   mqtt_publish "\$state_topic" "\$state"
 
-  latest_backup=$(echo "\$clean_backups" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" --arg ID "\$clean_name" '.[0] | {
+  latest_backup=\$(echo "\$clean_backups" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" --arg ID "\$clean_name" '.[0] | {
     status,
     ID: \$ID,
     comment: \$comment,
@@ -189,8 +189,7 @@ fi
     stale: (\$stale == "true"),
     backup_age: \$age
   }')
-echo "DEBUG: Comment for \$last_worker_id for \$group \$safe_client_topic = \$comment" >> /tmp/pbs_mqtt_debug.log
-
+  
   mqtt_publish "\$attributes_topic" "\$latest_backup"
 done
 
