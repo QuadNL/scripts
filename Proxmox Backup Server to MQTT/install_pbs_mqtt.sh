@@ -138,9 +138,9 @@ if [[ "\$clean_backups" != "null" && "\$clean_backups" != "" ]]; then
 fi
 
 
-  mqtt_publish "homeassistant/binary_sensor/pbs_backup_\${safe_client_topic}/config" ""
+  mqtt_publish "homeassistant/binary_sensor/\${DEVICENAME}_backup_\${safe_client_topic}/config" ""
 
-  discovery_topic="homeassistant/sensor/pbs_backup_\${safe_client_topic}_status/config"
+  discovery_topic="homeassistant/sensor/\${DEVICENAME}_\${safe_client_topic}_status/config"
   state_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/status"
   attributes_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/attributes"
 
