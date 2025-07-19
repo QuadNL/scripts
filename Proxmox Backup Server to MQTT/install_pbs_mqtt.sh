@@ -3,7 +3,7 @@
 echo "=== PBS MQTT Backup Status Installer ==="
 echo "Checking for required packages..."
 
-REQUIRED_PACKAGES=("jq" "mosquitto-clients")
+REQUIRED_PACKAGES=("proxmox-backup-client" "jq" "mosquitto-clients")
 MISSING_PACKAGES=()
 
 for pkg in "${REQUIRED_PACKAGES[@]}"; do
