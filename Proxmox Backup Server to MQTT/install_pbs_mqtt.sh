@@ -60,8 +60,8 @@ read -p "MQTT Port (default 1883): " MQTT_PORT
 MQTT_PORT=${MQTT_PORT:-1883}
 read -p "MQTT User: " MQTT_USER
 read -p "MQTT Password: " MQTT_PASS
-read -p "Device name (default Proxmox Backup): " DEVICENAME
-DEVICENAME=${DEVICENAME:-Proxmox Backup}
+read -p "Device name (default pbs): " DEVICENAME
+DEVICENAME=${DEVICENAME:-pbs}
 read -p "Stale Hours (default 72): " STALE_HOURS
 STALE_HOURS=${STALE_HOURS:-72}
 read -p "Run script every X minutes (default 15): " CRON_INTERVAL
@@ -101,7 +101,7 @@ backup_json=\$(proxmox-backup-manager task list --all --output-format json |
 
 echo "\$backup_json" | jq -c '.[]' | while read -r client_entry; do
   client=\$(echo "\$client_entry" | jq -r '.client')
-  clean_name=\$(echo "\$client" | sed 's/^NAS://')
+  clean_name=\$(echo "\$client" | sed 's/^NAS://' | tr -d '/')
   safe_client_topic=\$(echo "\$clean_name" | sed 's#[/:]#_#g')
 
   clean_backups=\$(echo "\$client_entry" | jq -c '
@@ -135,7 +135,7 @@ fi
   state_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/status"
   attributes_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/attributes"
 
-  discovery_payload=\$(jq -n     --arg name "\$clean_name"     --arg unique_id "pbs_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
+  discovery_payload=\$(jq -n     --arg name "\$clean_name (\$comment)"     --arg unique_id "pbs_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
       name: \$name,
       unique_id: \$unique_id,
       state_topic: \$state_topic,
@@ -169,7 +169,7 @@ fi
 
   latest_backup=\$(echo "\$clean_backups" | jq '.[0] | {
     status,
-    "Worker ID": .worker_id,
+    comment: \$comment,
     "Job started": (.start_human | sub(" "; " at ")),
     "Job finished": (.end_human | sub(" "; " at ")),
     "Job duration": (
@@ -183,8 +183,7 @@ fi
 
   latest_backup=\$(echo "\$latest_backup" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" '. + {
     stale: (\$stale == "true"),
-    backup_age: \$age,
-    comment: \$comment
+    backup_age: \$age
   }')
 echo "DEBUG: Comment for \$last_worker_id for \$group \$safe_client_topic = \$comment" >> /tmp/pbs_mqtt_debug.log
 
