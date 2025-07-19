@@ -167,8 +167,9 @@ fi
 
   mqtt_publish "\$state_topic" "\$state"
 
-  latest_backup=\$(echo "\$clean_backups" | jq '.[0] | {
+  latest_backup=$(echo "\$clean_backups" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" --arg ID "\$clean_name" '.[0] | {
     status,
+    ID: \$ID,
     comment: \$comment,
     "Job started": (.start_human | sub(" "; " at ")),
     "Job finished": (.end_human | sub(" "; " at ")),
@@ -178,8 +179,11 @@ fi
       else
         "unknown"
       end
-    )
+    ),
+    backup_age: \$age,
+    stale: (\$stale == "true")
   }')
+  
 
   latest_backup=\$(echo "\$latest_backup" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" '. + {
     stale: (\$stale == "true"),
