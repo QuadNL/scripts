@@ -82,7 +82,7 @@ MQTT_HOST="$MQTT_HOST"
 MQTT_PORT=$MQTT_PORT
 MQTT_USER="$MQTT_USER"
 MQTT_PASS="$MQTT_PASS"
-MQTT_BASE_TOPIC="proxmox/pbs/backup_status"
+MQTT_BASE_TOPIC="proxmox/pbs/$DEVICENAME/backup_status"
 STALE_HOURS=$STALE_HOURS
 
 TOKEN_ID=$TOKEN_ID
@@ -211,6 +211,9 @@ echo "Script installed at $SCRIPT_PATH"
 echo "Cronjob scheduled every $CRON_INTERVAL minutes"
 [ "$ENABLE_LOGGING" = "yes" ] && echo "Logging enabled at /var/log/pbs_mqtt.log"
 
+echo "Configuring TLS fingerprint for localhost"
+openssl s_client -connect localhost:8007 </dev/null 2>/dev/null | openssl x509 -outform PEM > /usr/local/share/ca-certificates/pbs.crt
+update-ca-certificates
 read -p "Run script now? (yes/no, default yes): " RUN_SCRIPT_NOW
 RUN_SCRIPT_NOW=${RUN_SCRIPT_NOW,,}
 RUN_SCRIPT_NOW=${RUN_SCRIPT_NOW:-yes}
