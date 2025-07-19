@@ -144,7 +144,7 @@ fi
   state_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/status"
   attributes_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/attributes"
 
-  discovery_payload=\$(jq -n     --arg name "\$clean_name"     --arg unique_id "pbs_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
+  discovery_payload=\$(jq -n     --arg name "\$clean_name"     --arg unique_id "\${DEVICENAME}_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
       name: \$name,
       unique_id: \$unique_id,
       state_topic: \$state_topic,
