@@ -144,8 +144,9 @@ fi
   state_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/status"
   attributes_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/attributes"
 
-  discovery_payload=\$(jq -n     --arg name "\$clean_name"     --arg unique_id "\${DEVICENAME}_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
+  discovery_payload=\$(jq -n     --arg name "\$clean_name"  --arg object_id ""\${DEVICENAME}_backup_${safe_client_topic}"   --arg unique_id "\${DEVICENAME}_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
       name: \$name,
+      object_id: \$object_id,
       unique_id: \$unique_id,
       state_topic: \$state_topic,
       json_attributes_topic: \$json_attributes_topic,
@@ -194,10 +195,10 @@ fi
   }')
   
 
-  latest_backup=\$(echo "\$latest_backup" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" '. + {
-    stale: (\$stale == "true"),
-    backup_age: \$age
-  }')
+#  latest_backup=\$(echo "\$latest_backup" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" '. + {
+#    stale: (\$stale == "true"),
+#    backup_age: \$age
+#  }')
   
   mqtt_publish "\$attributes_topic" "\$latest_backup"
 done
