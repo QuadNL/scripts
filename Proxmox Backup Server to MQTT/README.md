@@ -54,7 +54,8 @@ During installation you'll be asked for or confirm to:
 After installation you'll see incoming MQTT packets on your MQTT broker and in Home Assistant there is a device created under MQTT: Proxmox Backup Server.
 Each entity contains the following information:
 
-<img width="1256" height="227" alt="image" src="https://github.com/user-attachments/assets/e1c3e75d-8624-4ed6-b8a3-e20c1cfc2a8b" />
+<img width="889" height="500" alt="image" src="https://github.com/user-attachments/assets/97c10386-8a97-44c2-b970-467860b73401" />
+Image: Inforamtion from backups on same datastore but with size and age and stale diff.
 
 Which can be used as sensors in your dashboards or automations:
 <img width="797" height="357" alt="image" src="https://github.com/user-attachments/assets/fd50484e-c094-490d-93bb-996869208ba1" />
