@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "=== PBS MQTT Backup Status Installer ==="
-# --- Requried packages setup ---
+# --- Required packages setup ---
 echo "Checking for required packages..."
 
 REQUIRED_PACKAGES=("proxmox-backup-client" "jq" "mosquitto-clients")
@@ -60,7 +60,7 @@ read -p "IP Address of MQTT broker: " MQTT_HOST
 read -p "MQTT Port (default 1883): " MQTT_PORT
 MQTT_PORT=${MQTT_PORT:-1883}
 read -p "MQTT User: " MQTT_USER
-read -p "MQTT Password: " MQTT_PASS
+read -rp "MQTT Password: " MQTT_PASS
 read -p "Device name (default pbs): " DEVICENAME
 DEVICENAME=${DEVICENAME:-pbs}
 read -p "Stale Hours (default 72): " STALE_HOURS
