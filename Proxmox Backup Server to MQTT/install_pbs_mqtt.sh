@@ -90,120 +90,143 @@ TOKEN_SECRET=$PBS_TOKEN_SECRET
 
 HA_DEVICE='{"identifiers":["$DEVICENAME"],"name":"$DEVICENAME","manufacturer":"Proxmox","model":"Backup Server"}'
 
+# prevent status overwrite for older backups
+declare -A LAST_KNOWN_STATUS
+
 mqtt_publish() {
   local topic="\$1"
   local payload="\$2"
   mosquitto_pub -h "\$MQTT_HOST" -p "\$MQTT_PORT" -u "\$MQTT_USER" -P "\$MQTT_PASS" -t "\$topic" -m "\$payload" -r
 }
 
-raw_json=\$(proxmox-backup-manager task list --all --limit 100 --output-format json)
+# Mark device as online
+mqtt_publish "\$MQTT_BASE_TOPIC/availability" "online"
 
-backup_json=\$(echo "\$raw_json" | jq --argjson now "\$(date +%s)" '
-  [.[]
-    | select(.worker_type == "backup")
-    | select((.starttime // 0) >= (\$now - 86400))
-  ]
-  | sort_by(.starttime)
-  | group_by(.worker_id)
-  | map({client: .[-1].worker_id, backups: [.[-1]]})
+# Get all datastores
+DATASTORE_RAW_JSON=\$(proxmox-backup-manager datastore list --output-format json)
+
+# Verzamel alle snapshots van alle datastores, met datastore attribuut
+ALL_SNAPSHOTS_JSON="[]"
+for DATASTORE in \$(echo "\$DATASTORE_RAW_JSON" | jq -r '.[].name'); do
+  export PBS_REPOSITORY="\$TOKEN_ID@localhost:\$DATASTORE"
+  export PBS_PASSWORD="\$TOKEN_SECRET"
+
+  SNAPSHOTS_JSON=\$(proxmox-backup-client snapshot list --output-format json | \
+    jq --arg ds "\$DATASTORE" '[.[] | . + {datastore: \$ds}]')
+
+  ALL_SNAPSHOTS_JSON=\$(jq -s 'add' <(echo "\$ALL_SNAPSHOTS_JSON") <(echo "\$SNAPSHOTS_JSON"))
+done
+
+# Haal alle taken (backup status) in 1x op
+RAW_TASKS=\$(proxmox-backup-manager task list --all --limit 1000 --output-format json | jq '[.[] | select(.worker_type == "backup")]')
+
+# Groepeer per backup-id en pak de nieuwste snapshot per ID (over alle datastores)
+mapfile -t LATEST_SNAPSHOTS < <(echo "\$ALL_SNAPSHOTS_JSON" | jq -c '
+  group_by(."backup-id")[] | max_by(."backup-time")
 ')
 
-echo "\$backup_json" | jq -c '.[]' | while read -r client_entry; do
-  client=\$(echo "\$client_entry" | jq -r '.client')
-  clean_name=\$(echo "\$client" | sed 's/^[^:]*://' | tr -d '/')
-  safe_client_topic=\$(echo "\$clean_name" | sed 's#[/:]#_#g')
+# Publiceer per nieuwste snapshot
+for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
+  ID=\$(echo "\$SNAPSHOT" | jq -r '."backup-id"')
+  TYPE=\$(echo "\$SNAPSHOT" | jq -r '."backup-type"')
+  COMMENT=\$(echo "\$SNAPSHOT" | jq -r '(.comment // "none")')
+  BACKUP_TIME=\$(echo "\$SNAPSHOT" | jq -r '."backup-time"')
+  SIZE_BYTES=\$(echo "\$SNAPSHOT" | jq -r '.size // 0')
+  DATASTORE=\$(echo "\$SNAPSHOT" | jq -r '.datastore')
 
-  clean_backups=\$(echo "\$client_entry" | jq -c '
-    .backups | map(
-      del(.user, .node, .worker_type)
-      + {
-        start_human: (if .starttime then (.starttime | tonumber | strftime("%Y-%m-%d %H:%M:%S")) else "" end),
-        end_human: (if .endtime then (.endtime | tonumber | strftime("%Y-%m-%d %H:%M:%S")) else "" end)
-      }
-    )
-  ')
+  FRIENDLY_ID="\${TYPE}\${ID}"
+  FRIENDLY_NAME="\${FRIENDLY_ID} (\${COMMENT})"
+  FRIENDLY_TYPE=\$(case "\$TYPE" in
+    "ct") echo "LXC" ;;
+    "vm") echo "VM" ;;
+    *) echo "\$TYPE" ;;
+  esac)
 
-# Retrieve latest comment via proxmox-backup-client with token authentication
-comment=""
-if [[ "\$clean_backups" != "null" && "\$clean_backups" != "" ]]; then
-  last_worker_id=\$(echo "\$clean_backups" | jq -r '.[0].worker_id // empty')
-  if [ -n "\$last_worker_id" ]; then
-    export PBS_TOKENID=\$TOKEN_ID
-    export PBS_PASSWORD=\$TOKEN_SECRET
-    REPO="\${last_worker_id%%:*}"
-    group="\${last_worker_id#*:}"
-    snapshot_json=\$(proxmox-backup-client snapshot list \$group --repository \$PBS_TOKENID@localhost:\$REPO --output-format json)
-    comment=\$(echo \$snapshot_json | jq '.[-1].comment' | tr -d '"')
+  if [[ "\$SIZE_BYTES" =~ ^[0-9]+\$ && "\$SIZE_BYTES" -gt 0 ]]; then
+    SIZE_GIB=\$(awk "BEGIN { printf \"%.2f\", \$SIZE_BYTES / 1024 / 1024 / 1024 }" | sed 's/\./,/')
+    SIZE_FORMATTED="\${SIZE_GIB} GiB"
+  else
+    SIZE_FORMATTED="n/a"
   fi
-fi
 
+  NOW=\$(date +%s)
+  AGE_SEC=\$((NOW - BACKUP_TIME))
+  HOURS=\$((AGE_SEC / 3600))
+  MINUTES=\$(((AGE_SEC % 3600) / 60))
+  SECONDS=\$((AGE_SEC % 60))
+  HUMAN_AGE=\$(printf "%02d:%02d:%02d" "\$HOURS" "\$MINUTES" "\$SECONDS")
+  STALE=false
+  [[ \$AGE_SEC -gt \$((STALE_HOURS * 3600)) ]] && STALE=true
 
-  mqtt_publish "homeassistant/binary_sensor/${DEVICENAME}_backup_\${safe_client_topic}/config" ""
+  # Zoek laatste taakstatus voor deze snapshot in de eerder opgehaalde takenlijst
+  STATUS=\$(echo "\$RAW_TASKS" | jq -r \
+    --arg type "\$TYPE" \
+    --arg id "\$ID" \
+    --arg datastore "\$DATASTORE" \
+    '
+    map(select(.worker_type == "backup"))
+    | map(select(.worker_id | startswith(\$datastore + ":" + \$type + "/" + \$id)))
+    | sort_by(.endtime)
+    | reverse
+    | .[0].status // "unknown"
+    ')
 
-  discovery_topic="homeassistant/sensor/${DEVICENAME}_\${safe_client_topic}_status/config"
-  state_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/status"
-  attributes_topic="\$MQTT_BASE_TOPIC/\${safe_client_topic}/attributes"
+  if [[ "\$STATUS" != "unknown" ]]; then
+    LAST_KNOWN_STATUS[\$ID]="\$STATUS"
+  fi
 
-  discovery_payload=\$(jq -n     --arg name "\$clean_name (\$comment)"  --arg object_id "${DEVICENAME}_backup_\${safe_client_topic}"   --arg unique_id "${DEVICENAME}_backup_\${safe_client_topic}_status"     --arg state_topic "\$state_topic"     --arg json_attributes_topic "\$attributes_topic"     --arg availability_topic "\$MQTT_BASE_TOPIC/availability"     --arg icon "mdi:backup-restore"     --arg device_class "enum"     --argjson device "\$HA_DEVICE"     '{
+  STATE_TOPIC="\$MQTT_BASE_TOPIC/\${FRIENDLY_ID}/status"
+  ATTR_TOPIC="\$MQTT_BASE_TOPIC/\${FRIENDLY_ID}/attributes"
+  DISCOVERY_TOPIC="homeassistant/sensor/${DEVICENAME}_backup_\${FRIENDLY_ID}/config"
+
+  DISCOVERY_PAYLOAD=\$(jq -n \
+    --arg name "\$FRIENDLY_NAME" \
+    --arg object_id "${DEVICENAME}_backup_\${FRIENDLY_ID}" \
+    --arg unique_id "${DEVICENAME}_backup_\${FRIENDLY_ID}_status" \
+    --arg state_topic "\$STATE_TOPIC" \
+    --arg attr_topic "\$ATTR_TOPIC" \
+    --arg avail_topic "\$MQTT_BASE_TOPIC/availability" \
+    --arg icon "mdi:backup-restore" \
+    --arg device_class "enum" \
+    --argjson device "\$HA_DEVICE" \
+    '{
       name: \$name,
       object_id: \$object_id,
       unique_id: \$unique_id,
       state_topic: \$state_topic,
-      json_attributes_topic: \$json_attributes_topic,
-      availability_topic: \$availability_topic,
+      json_attributes_topic: \$attr_topic,
+      availability_topic: \$avail_topic,
       icon: \$icon,
       device_class: \$device_class,
       device: \$device
     }')
 
-  mqtt_publish "\$discovery_topic" "\$discovery_payload"
+  ATTR_PAYLOAD=\$(jq -n \
+    --arg status "\$STATUS" \
+    --arg ID "\$FRIENDLY_ID" \
+    --arg comment "\$COMMENT" \
+    --arg finished "\$(date -d "@\$BACKUP_TIME" +"%Y-%m-%d at %H:%M:%S")" \
+    --arg size "\$SIZE_FORMATTED" \
+    --arg age "\$HUMAN_AGE" \
+    --argjson stale "\$STALE" \
+    --arg type "\$FRIENDLY_TYPE" \
+    --arg datastore "\$DATASTORE" \
+    '{
+      status: \$status,
+      type: \$type,
+      ID: \$ID,
+      comment: \$comment,
+      "latest backup": \$finished,
+      "backup size": \$size,
+      "backup age": \$age,
+      datastore : \$datastore,       
+      stale: \$stale
+    }')
 
-  state=\$(echo "\$clean_backups" | jq -r '.[0].status // "unknown"')
-  backup_age=\$(echo "\$clean_backups" | jq '.[0].endtime // 0')
-  now=\$(date +%s)
-  age_sec=\$((now - backup_age))
-  max_age_sec=\$((STALE_HOURS * 3600))
-
-  is_stale="false"
-  if (( age_sec > max_age_sec )); then
-    state="stale"
-    is_stale="true"
-  fi
-
-  hours=\$(( age_sec / 3600 ))
-  minutes=\$(( (age_sec % 3600) / 60 ))
-  seconds=\$(( age_sec % 60 ))
-  human_age=\$(printf "%02d:%02d:%02d" "\$hours" "\$minutes" "\$seconds")
-
-  mqtt_publish "\$state_topic" "\$state"
-
-  latest_backup=\$(echo "\$clean_backups" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" --arg ID "\$clean_name" '.[0] | {
-    status,
-    ID: \$ID,
-    comment: \$comment,
-    "Job started": (.start_human | sub(" "; " at ")),
-    "Job finished": (.end_human | sub(" "; " at ")),
-    "Job duration": (
-      if (.endtime and .starttime) then
-        ((.endtime - .starttime) | tostring + " seconds")
-      else
-        "unknown"
-      end
-    ),
-    backup_age: \$age,
-    stale: (\$stale == "true")
-  }')
-  
-
-#  latest_backup=\$(echo "\$latest_backup" | jq --arg stale "\$is_stale" --arg age "\$human_age" --arg comment "\$comment" '. + {
-#    stale: (\$stale == "true"),
-#    backup_age: \$age
-#  }')
-  
-  mqtt_publish "\$attributes_topic" "\$latest_backup"
+  mqtt_publish "\$STATE_TOPIC" "\$STATUS"
+  mqtt_publish "\$ATTR_TOPIC" "\$ATTR_PAYLOAD"
+  mqtt_publish "\$DISCOVERY_TOPIC" "\$DISCOVERY_PAYLOAD"
 done
-
-mqtt_publish "\$MQTT_BASE_TOPIC/availability" "online"
 EOF
 
 chmod +x "$SCRIPT_PATH"
