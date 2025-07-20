@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo "=== PBS MQTT Backup Status Installer ==="
+# --- Requried packages setup ---
 echo "Checking for required packages..."
 
 REQUIRED_PACKAGES=("proxmox-backup-client" "jq" "mosquitto-clients")
@@ -37,7 +38,6 @@ fi
 echo "Recreating API token '$TOKEN_NAME'..."
 TOKEN_OUTPUT=$(proxmox-backup-manager user generate-token "$USERID" "$TOKEN_NAME")
 
-# Remove leading "Result: " from output and extract the token value using jq
 TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | sed '1s/^Result: //' | jq -r '.value')
 
 if [ -z "$TOKEN_SECRET" ] || [ "$TOKEN_SECRET" = "null" ]; then
@@ -55,6 +55,7 @@ PBS_TOKEN_SECRET=$(cat "$TOKEN_SECRET_FILE")
 echo "Setting ACL permissions for $USERID with role DatastoreAudit."
 proxmox-backup-manager acl update /datastore DatastoreAudit --auth-id $TOKEN_ID
 
+# --- Script and MQTT configuration ---
 read -p "IP Address of MQTT broker: " MQTT_HOST
 read -p "MQTT Port (default 1883): " MQTT_PORT
 MQTT_PORT=${MQTT_PORT:-1883}
@@ -72,6 +73,7 @@ ENABLE_LOGGING=${ENABLE_LOGGING:-yes}
 
 SCRIPT_PATH="/usr/local/bin/pbs_mqtt_backup_status.sh"
 
+# --- Saving script ---
 echo "Creating script at $SCRIPT_PATH..."
 
 cat > "$SCRIPT_PATH" <<EOF
@@ -84,13 +86,11 @@ MQTT_USER="$MQTT_USER"
 MQTT_PASS="$MQTT_PASS"
 MQTT_BASE_TOPIC="proxmox/$DEVICENAME/backup_status"
 STALE_HOURS=$STALE_HOURS
-
 TOKEN_ID=$TOKEN_ID
 TOKEN_SECRET=$PBS_TOKEN_SECRET
 
 HA_DEVICE='{"identifiers":["$DEVICENAME"],"name":"$DEVICENAME","manufacturer":"Proxmox","model":"Backup Server"}'
 
-# prevent status overwrite for older backups
 declare -A LAST_KNOWN_STATUS
 
 mqtt_publish() {
@@ -99,13 +99,10 @@ mqtt_publish() {
   mosquitto_pub -h "\$MQTT_HOST" -p "\$MQTT_PORT" -u "\$MQTT_USER" -P "\$MQTT_PASS" -t "\$topic" -m "\$payload" -r
 }
 
-# Mark device as online
 mqtt_publish "\$MQTT_BASE_TOPIC/availability" "online"
 
-# Get all datastores
 DATASTORE_RAW_JSON=\$(proxmox-backup-manager datastore list --output-format json)
 
-# Verzamel alle snapshots van alle datastores, met datastore attribuut
 ALL_SNAPSHOTS_JSON="[]"
 for DATASTORE in \$(echo "\$DATASTORE_RAW_JSON" | jq -r '.[].name'); do
   export PBS_REPOSITORY="\$TOKEN_ID@localhost:\$DATASTORE"
@@ -117,15 +114,12 @@ for DATASTORE in \$(echo "\$DATASTORE_RAW_JSON" | jq -r '.[].name'); do
   ALL_SNAPSHOTS_JSON=\$(jq -s 'add' <(echo "\$ALL_SNAPSHOTS_JSON") <(echo "\$SNAPSHOTS_JSON"))
 done
 
-# Haal alle taken (backup status) in 1x op
 RAW_TASKS=\$(proxmox-backup-manager task list --all --limit 1000 --output-format json | jq '[.[] | select(.worker_type == "backup")]')
 
-# Groepeer per backup-id en pak de nieuwste snapshot per ID (over alle datastores)
 mapfile -t LATEST_SNAPSHOTS < <(echo "\$ALL_SNAPSHOTS_JSON" | jq -c '
   group_by(."backup-id")[] | max_by(."backup-time")
 ')
 
-# Publiceer per nieuwste snapshot
 for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
   ID=\$(echo "\$SNAPSHOT" | jq -r '."backup-id"')
   TYPE=\$(echo "\$SNAPSHOT" | jq -r '."backup-type"')
@@ -158,7 +152,6 @@ for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
   STALE=false
   [[ \$AGE_SEC -gt \$((STALE_HOURS * 3600)) ]] && STALE=true
 
-  # Zoek laatste taakstatus voor deze snapshot in de eerder opgehaalde takenlijst
   STATUS=\$(echo "\$RAW_TASKS" | jq -r \
     --arg type "\$TYPE" \
     --arg id "\$ID" \
@@ -229,26 +222,29 @@ for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
 done
 EOF
 
+# --- Set script as executable ---
 chmod +x "$SCRIPT_PATH"
 
-# Remove existing cron job and logs for this script
+# --- Crontab setup ---
 crontab -l 2>/dev/null | grep -v "$SCRIPT_PATH" > /tmp/cron.tmp || true
 rm --force /var/log/pbs_mqtt.log
 
-# Add new cron job
 CRON_CMD="$SCRIPT_PATH"
 [ "$ENABLE_LOGGING" = "yes" ]  && CRON_CMD="$CRON_CMD >> /var/log/pbs_mqtt.log 2>&1"
 echo "*/$CRON_INTERVAL * * * * $CRON_CMD" >> /tmp/cron.tmp
 crontab /tmp/cron.tmp
 rm /tmp/cron.tmp
 
+# --- Certificate setup ---
+echo "Configuring TLS fingerprint for localhost"
+openssl s_client -connect localhost:8007 </dev/null 2>/dev/null | openssl x509 -outform PEM > /usr/local/share/ca-certificates/pbs.crt
+update-ca-certificates
+
+# --- Finishing tasks ---
 echo "Script installed at $SCRIPT_PATH"
 echo "Cronjob scheduled every $CRON_INTERVAL minutes"
 [ "$ENABLE_LOGGING" = "yes" ] && echo "Logging enabled at /var/log/pbs_mqtt.log"
 
-echo "Configuring TLS fingerprint for localhost"
-openssl s_client -connect localhost:8007 </dev/null 2>/dev/null | openssl x509 -outform PEM > /usr/local/share/ca-certificates/pbs.crt
-update-ca-certificates
 read -p "Run script now? (yes/no, default yes): " RUN_SCRIPT_NOW
 RUN_SCRIPT_NOW=${RUN_SCRIPT_NOW,,}
 RUN_SCRIPT_NOW=${RUN_SCRIPT_NOW:-yes}
