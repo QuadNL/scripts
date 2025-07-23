@@ -138,7 +138,7 @@ for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
 
   if [[ "\$SIZE_BYTES" =~ ^[0-9]+\$ && "\$SIZE_BYTES" -gt 0 ]]; then
     SIZE_GIB=\$(awk "BEGIN { printf \"%.2f\", \$SIZE_BYTES / 1024 / 1024 / 1024 }" | sed 's/\./,/')
-    SIZE_FORMATTED="\${SIZE_GIB} GiB"
+    SIZE_FORMATTED="\${SIZE_GIB}"
   else
     SIZE_FORMATTED="n/a"
   fi
@@ -210,7 +210,7 @@ for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
       ID: \$ID,
       comment: \$comment,
       "latest backup": \$finished,
-      "backup size": \$size,
+      "backup size (GB)": \$size,
       "backup age": \$age,
       datastore : \$datastore,       
       stale: \$stale
