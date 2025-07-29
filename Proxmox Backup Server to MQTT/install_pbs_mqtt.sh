@@ -157,16 +157,24 @@ for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
     --arg id "\$ID" \
     --arg datastore "\$DATASTORE" \
     '
-    map(select(.worker_type == "backup"))
-    | map(select(.worker_id | startswith(\$datastore + ":" + \$type + "/" + \$id)))
-    | sort_by(.endtime)
-    | reverse
-    | .[0].status // "unknown"
+      map(select(.worker_type == "backup"))
+      | map(select(.worker_id | startswith(\$datastore + ":" + \$type + "/" + \$id)))
+      | sort_by(.endtime)
+      | reverse
+      | .[0].status // "unknown"
     ')
+
+  if [[ "\$STALE" == "true" && ( "\$STATUS" == "unknown" || "\$STATUS" == "OK" ) ]]; then
+    STATUS="stale"
+  fi
 
   if [[ "\$STATUS" != "unknown" ]]; then
     LAST_KNOWN_STATUS[\$ID]="\$STATUS"
   fi
+  ICON="mdi:backup-restore"
+  if [[ "\$STATUS" == "stale" ]]; then
+    ICON="mdi:clock-alert"
+  fi  
 
   STATE_TOPIC="\$MQTT_BASE_TOPIC/\${FRIENDLY_ID}/status"
   ATTR_TOPIC="\$MQTT_BASE_TOPIC/\${FRIENDLY_ID}/attributes"
@@ -179,7 +187,7 @@ for SNAPSHOT in "\${LATEST_SNAPSHOTS[@]}"; do
     --arg state_topic "\$STATE_TOPIC" \
     --arg attr_topic "\$ATTR_TOPIC" \
     --arg avail_topic "\$MQTT_BASE_TOPIC/availability" \
-    --arg icon "mdi:backup-restore" \
+    --arg icon "\$ICON" \
     --arg device_class "enum" \
     --argjson device "\$HA_DEVICE" \
     '{
